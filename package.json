@@ -1,0 +1,71 @@
+{
+  "name": "vision-client",
+  "productName": "Vision Client",
+  "version": "4.0.1",
+  "description": "Vision Client",
+  "main": "src/main/main.js",
+  "author": "aarxndev",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build:native": "powershell -ExecutionPolicy Bypass -File native/vision-core/build.ps1",
+    "prebuild": "npm run build:native",
+    "build": "electron-builder",
+    "build:dir": "electron-builder --dir"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3",
+    "rcedit": "^5.0.2"
+  },
+  "build": {
+    "afterPack": "scripts/after-pack.js",
+    "appId": "gg.aarxn.visionclient",
+    "productName": "Vision Client",
+    "copyright": "Copyright © aarxn",
+    "directories": {
+      "output": "release"
+    },
+    "asar": true,
+    "files": [
+      "src/**/*",
+      "assets/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "src/main/windivert",
+        "to": "windivert",
+        "filter": [
+          "**/*",
+          "!*.js"
+        ]
+      },
+      {
+        "from": "native/vision-core/bin/vision-core.exe",
+        "to": "vision-core/vision-core.exe"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/visionicon-256.png",
+      "publisherName": "aarxn",
+      "legalTrademarks": "Vision Client",
+      "requestedExecutionLevel": "requireAdministrator",
+      "signAndEditExecutable": false,
+      "artifactName": "${productName}-${version}.exe"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}.exe",
+      "requestExecutionLevel": "admin"
+    }
+  }
+}
