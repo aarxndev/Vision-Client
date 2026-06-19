@@ -1,0 +1,15 @@
+node_modules/
+dist/
+release/
+build/
+.wrangler/
+*.log
+.DS_Store
+.env
+showcase/node_modules/
+showcase/out/
+showcase/dist/
+*.user
+Thumbs.db
+native/vision-core/bin/
+*.obj

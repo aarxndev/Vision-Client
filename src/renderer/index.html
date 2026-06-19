@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: vbg: vavatar:; media-src 'self' vbg:; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+    <title>Vision Client</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    
+    <div id="bg-layer"></div>
+    <div id="bg-tint"></div>
+
+    <header class="titlebar">
+      <div class="tb-left">
+        <span class="tb-title">VISION</span>
+        <span class="tb-sub" id="tb-user">woof</span>
+      </div>
+      <div class="tb-controls">
+        <button class="tb-btn" id="btn-min" title="Minimize">&#x2013;</button>
+        <button class="tb-btn" id="btn-hide" title="Hide to tray">&#x25BC;</button>
+        <button class="tb-btn tb-close" id="btn-close" title="Close">&#x2715;</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      
+      <nav class="sidebar">
+        <div class="profile">
+          <img class="avatar avatar-btn" id="profile-avatar" src="../../assets/visionpfp.png" alt="" title="Change profile picture" />
+          <div class="profile-meta">
+            <div class="profile-name" id="profile-name">Vision Client</div>
+            <div class="profile-ver" id="version">v4.0.1</div>
+          </div>
+        </div>
+
+        <div class="nav-items">
+          <button class="nav-item active" data-tab="modules" title="Modules">
+            <span class="nav-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>
+            <span class="nav-label">Modules</span>
+          </button>
+          <button class="nav-item" data-tab="filters" title="Filters">
+            <span class="nav-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2.4" fill="currentColor" stroke="none"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2.4" fill="currentColor" stroke="none"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="8" cy="18" r="2.4" fill="currentColor" stroke="none"/></svg></span>
+            <span class="nav-label">Filters</span>
+          </button>
+          <button class="nav-item" data-tab="bible" title="Netlimiter Bible">
+            <span class="nav-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><line x1="12" y1="6" x2="12" y2="18"/></svg></span>
+            <span class="nav-label">Bible</span>
+          </button>
+          <button class="nav-item" data-tab="settings" title="Settings">
+            <span class="nav-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+            <span class="nav-label">Settings</span>
+          </button>
+        </div>
+
+        <div class="status-card">
+          <div class="status-row">
+            <span class="status-label">Game</span>
+            <span class="status-pill off" id="st-game">Offline</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Limiter</span>
+            <span class="status-pill off" id="st-engine">Idle</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Active</span>
+            <span class="status-pill" id="st-active">0 / 0</span>
+          </div>
+        </div>
+
+        <button class="discord-btn" id="btn-discord"><span class="nav-ico"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19.27 5.33A16.6 16.6 0 0 0 15.1 4l-.2.4a12.7 12.7 0 0 1 3.7 1.86A14 14 0 0 0 4.4 6.26 12.6 12.6 0 0 1 8.1 4.4L7.9 4a16.6 16.6 0 0 0-4.17 1.33C1.6 9 .9 12.6 1 16.18A16.7 16.7 0 0 0 6.1 18.8l.4-.55a9.9 9.9 0 0 1-1.6-.78l.4-.3a11.9 11.9 0 0 0 10.4 0l.4.3a9.6 9.6 0 0 1-1.6.78l.4.55a16.7 16.7 0 0 0 5.1-2.62c.16-4.14-.7-7.72-2.13-10.85ZM8.3 14.1c-.98 0-1.8-.9-1.8-2s.8-2 1.8-2 1.82.9 1.8 2c0 1.1-.82 2-1.8 2Zm7.4 0c-.98 0-1.8-.9-1.8-2s.8-2 1.8-2 1.82.9 1.8 2c0 1.1-.8 2-1.8 2Z"/></svg></span><span class="nav-label">Join the discord</span></button>
+      </nav>
+
+      <main class="content">
+        
+        <section class="tab" id="tab-modules">
+          <div class="page-head">
+            <div>
+              <h1>Modules</h1>
+              <p class="muted">Toggle a module or press its hotkey to limit the matching ports.</p>
+            </div>
+            <div class="head-actions">
+              <button class="btn" id="btn-pause"><span class="dot pause"></span>Freeze Game</button>
+              <button class="btn" id="btn-kill">Kill Connections</button>
+              <button class="btn danger" id="btn-clear">Disable All</button>
+            </div>
+          </div>
+          <div class="modules-grid" id="modules"></div>
+        </section>
+
+        <section class="tab hidden" id="tab-filters">
+          <div class="page-head">
+            <div>
+              <h1>Filters</h1>
+              <p class="muted">Define which ports each module limits, the direction, and the rate.</p>
+            </div>
+            <div class="head-actions">
+              <button class="btn" id="btn-add-filter">+ Add Filter</button>
+              <button class="btn primary" id="btn-save-filters">Save</button>
+            </div>
+          </div>
+          <div class="filter-table-wrap">
+            <table class="filter-table">
+              <thead>
+                <tr>
+                  <th>Name</th><th>Start</th><th>End</th><th>Direction</th>
+                  <th>Limit (B/s)</th><th>Mode</th><th>Buffer (s)</th><th>Hotkey</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="filter-rows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="tab hidden" id="tab-bible">
+          <div class="page-head">
+            <div>
+              <h1>Netlimiter Bible</h1>
+              <p class="muted">Guide by <a href="#" id="bible-credit" class="bible-link">harryy2533</a> — check presets to add filters automatically.</p>
+            </div>
+            <div class="head-actions">
+              <button class="btn" id="btn-bible-guide">Open Guide</button>
+              <button class="btn primary" id="btn-bible-apply">Apply Selected Filters</button>
+            </div>
+          </div>
+
+          <div class="bible-subtabs">
+            <button class="bible-subtab active" data-bible-tab="presets">Ports &amp; Filters</button>
+            <button class="bible-subtab" data-bible-tab="macros">Built-in Macros</button>
+          </div>
+
+          <div class="bible-desc" id="bible-desc">Select a preset to see what it does.</div>
+
+          <div class="bible-panel" id="bible-panel-presets">
+            <div class="bible-list" id="bible-list"></div>
+          </div>
+
+          <div class="bible-panel hidden" id="bible-panel-macros">
+            <div class="macro-list">
+              <div class="macro-row">
+                <div class="macro-info">
+                  <span class="macro-name">Wellskate</span>
+                  <span class="macro-hint muted small">Hold hotkey in-game while enabled.</span>
+                </div>
+                <div class="macro-actions">
+                  <button type="button" class="bind-btn macro-bind" data-macro="wellskate" data-default="Middle"></button>
+                  <input type="checkbox" class="macro-toggle" data-macro="wellskate" />
+                </div>
+              </div>
+              <div class="macro-row">
+                <div class="macro-info">
+                  <span class="macro-name">Wishwall</span>
+                  <span class="macro-hint muted small">Press hotkey in-game while enabled.</span>
+                </div>
+                <div class="macro-actions">
+                  <button type="button" class="bind-btn macro-bind" data-macro="wishwall" data-default="F3"></button>
+                  <input type="checkbox" class="macro-toggle" data-macro="wishwall" />
+                </div>
+              </div>
+              <div class="macro-row macro-row-chat">
+                <div class="macro-info">
+                  <span class="macro-name">Chat Spammer</span>
+                  <span class="macro-hint muted small">Press hotkey in-game to send your message.</span>
+                </div>
+                <div class="macro-actions">
+                  <button type="button" class="bind-btn macro-bind" data-macro="chat" data-default="F2"></button>
+                  <input type="checkbox" class="macro-toggle" data-macro="chat" />
+                </div>
+              </div>
+              <div class="macro-chat-options hidden" id="chat-macro-options">
+                <label class="field">
+                  <span>Spam message</span>
+                  <input type="text" id="chat-macro-text" placeholder="Type the message to spam…" maxlength="120" />
+                </label>
+              </div>
+              <div class="macro-row">
+                <div class="macro-info">
+                  <span class="macro-name">Duality Loadout Desync</span>
+                  <span class="macro-hint muted small">Press hotkey in-game while enabled. Set screen coordinates for your resolution.</span>
+                </div>
+                <div class="macro-actions">
+                  <button type="button" class="bind-btn macro-bind" data-macro="duality" data-default="F6"></button>
+                  <input type="checkbox" class="macro-toggle" data-macro="duality" />
+                </div>
+              </div>
+              <div class="macro-options hidden" id="duality-macro-options">
+                <p class="muted small macro-options-note">Coordinates are pixel positions on your primary monitor. Open Destiny in windowed fullscreen at a fixed resolution before calibrating.</p>
+                <div class="macro-coord-grid">
+                  <label class="field"><span>Menu open X</span><input type="number" id="duality-open-x" min="0" max="9999" /></label>
+                  <label class="field"><span>Menu open Y</span><input type="number" id="duality-open-y" min="0" max="9999" /></label>
+                  <label class="field"><span>Loadout 1 X</span><input type="number" id="duality-l1-x" min="0" max="9999" /></label>
+                  <label class="field"><span>Loadout 2 X</span><input type="number" id="duality-l2-x" min="0" max="9999" /></label>
+                  <label class="field"><span>Loadout 3 X</span><input type="number" id="duality-l3-x" min="0" max="9999" /></label>
+                  <label class="field"><span>Loadout 4 X</span><input type="number" id="duality-l4-x" min="0" max="9999" /></label>
+                  <label class="field"><span>Loadout row Y</span><input type="number" id="duality-loadout-y" min="0" max="9999" /></label>
+                  <label class="field"><span>Swap delay (ms)</span><input type="number" id="duality-swap-delay" min="50" max="2000" step="10" /></label>
+                </div>
+              </div>
+            </div>
+            <p class="muted small" style="margin-top:12px">Click a bind button, then press a key or mouse button. Enable the macro checkbox, then use the bind in-game.</p>
+          </div>
+        </section>
+
+        <section class="tab hidden" id="tab-settings">
+          <div class="page-head"><div><h1>Settings</h1><p class="muted">Theme, background, hotkeys, and behavior.</p></div></div>
+
+          <h2 class="section-title">Accent color</h2>
+          <div class="swatches" id="swatches"></div>
+          <div class="custom-color">
+            <span class="muted">Custom</span>
+            <input type="color" id="accent-picker" />
+            <input type="text" id="accent-hex" maxlength="7" placeholder="#9c2bff" />
+          </div>
+
+          <h2 class="section-title">Background</h2>
+          <div class="bg-grid" id="bg-grid">
+            <button class="bg-thumb" data-kind="gradient"><span class="bg-grad-preview"></span><span class="bg-name">None (gradient)</span></button>
+            <button class="bg-thumb" data-kind="builtin" data-src="../../assets/bg/stars.gif" data-video="false"><img src="../../assets/bg/stars.gif" /><span class="bg-name">Stars</span></button>
+            <button class="bg-thumb" data-kind="builtin" data-src="../../assets/bg/sakura.gif" data-video="false"><img src="../../assets/bg/sakura.gif" /><span class="bg-name">Sakura</span></button>
+            <button class="bg-thumb" data-kind="builtin" data-src="../../assets/bg/particles.gif" data-video="false"><img src="../../assets/bg/particles.gif" /><span class="bg-name">Particles</span></button>
+            <button class="bg-thumb bg-custom" data-kind="pick"><span class="bg-plus">+</span><span class="bg-name">Choose file… (image/video)</span></button>
+          </div>
+
+          <div class="bg-sliders">
+            <label class="slider"><span>Opacity <b id="op-val">55%</b></span><input type="range" id="bg-opacity" min="0" max="100" value="55" /></label>
+            <label class="slider"><span>Dim <b id="dim-val">45%</b></span><input type="range" id="bg-dim" min="0" max="90" value="45" /></label>
+            <label class="slider"><span>Blur <b id="blur-val">0px</b></span><input type="range" id="bg-blur" min="0" max="24" value="0" /></label>
+          </div>
+
+          <h2 class="section-title">General</h2>
+          <div class="settings-grid">
+            <label class="field">
+              <span>Display name</span>
+              <input id="set-name" type="text" placeholder="Your name" maxlength="24" />
+            </label>
+            <label class="field">
+              <span>Hotkey modifier</span>
+              <select id="set-modifier">
+                <option value="Control">Control</option>
+                <option value="Alt">Alt</option>
+                <option value="Shift">Shift</option>
+              </select>
+            </label>
+            <label class="field bind-field">
+              <span>Freeze-game hotkey</span>
+              <button type="button" class="bind-btn" id="set-pause-bind" data-default="Control+0"></button>
+            </label>
+            <label class="field check">
+              <input id="set-overlay" type="checkbox" />
+              <span>Show in-game overlay (top-left)</span>
+            </label>
+          </div>
+          <div class="head-actions" style="margin-top:18px">
+            <button class="btn primary" id="btn-save-settings">Save Settings</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="modal-backdrop hidden" id="name-modal">
+      <div class="modal">
+        <img class="modal-logo" src="../../assets/visionlogo.png" alt="" />
+        <h2>Welcome to Vision</h2>
+        <p class="muted">What should we call you? This is stored locally and you can change it later in Settings.</p>
+        <input id="name-input" type="text" placeholder="Enter your name" maxlength="24" />
+        <button class="btn primary" id="name-save">Continue</button>
+      </div>
+    </div>
+
+    <div class="bind-menu hidden" id="pause-bind-menu">
+      <div class="bind-menu-head">Freeze Game bind</div>
+      <button type="button" class="bind-btn" id="pause-bind-btn" data-default="Control+0"></button>
+      <p class="muted small">Click bind, then press a key</p>
+    </div>
+
+    <div class="toast-wrap" id="toasts"></div>
+    <script src="hotkey-bind.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
