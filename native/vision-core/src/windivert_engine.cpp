@@ -3,10 +3,14 @@
 #include <algorithm>
 #include <chrono>
 #include <cstring>
+#include <vector>
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <iphlpapi.h>
+
+#pragma comment(lib, "iphlpapi.lib")
 
 namespace {
 uint64_t nowMs() {
@@ -15,24 +19,52 @@ uint64_t nowMs() {
       std::chrono::steady_clock::now().time_since_epoch()).count());
 }
 
-bool parsePorts(const uint8_t* buf, unsigned len, uint16_t& srcPort, uint16_t& dstPort) {
+bool parseTransport(const uint8_t* buf, unsigned len, bool& isTcp, uint16_t& srcPort, uint16_t& dstPort) {
   if (len < 1) return false;
   int ver = buf[0] >> 4;
-  unsigned udpOff = 0;
+  unsigned transportOff = 0;
+  uint8_t proto = 0;
   if (ver == 4) {
     if (len < 20) return false;
     unsigned ihl = (buf[0] & 0x0f) * 4;
-    if (buf[9] != 17) return false;
-    udpOff = ihl;
+    proto = buf[9];
+    transportOff = ihl;
   } else if (ver == 6) {
     if (len < 40) return false;
-    if (buf[6] != 17) return false;
-    udpOff = 40;
+    proto = buf[6];
+    transportOff = 40;
   } else return false;
-  if (len < udpOff + 4) return false;
-  srcPort = (static_cast<uint16_t>(buf[udpOff]) << 8) | buf[udpOff + 1];
-  dstPort = (static_cast<uint16_t>(buf[udpOff + 2]) << 8) | buf[udpOff + 3];
+  if (proto != 17 && proto != 6) return false;
+  isTcp = (proto == 6);
+  if (len < transportOff + 4) return false;
+  srcPort = (static_cast<uint16_t>(buf[transportOff]) << 8) | buf[transportOff + 1];
+  dstPort = (static_cast<uint16_t>(buf[transportOff + 2]) << 8) | buf[transportOff + 3];
   return true;
+}
+
+void resetTcpOnPortRange(int beginPort, int endPort) {
+  ULONG size = 0;
+  if (GetExtendedTcpTable(nullptr, &size, FALSE, AF_INET, TCP_TABLE_OWNER_PID_ALL, 0) != ERROR_INSUFFICIENT_BUFFER)
+    return;
+  std::vector<uint8_t> buf(size);
+  if (GetExtendedTcpTable(buf.data(), &size, FALSE, AF_INET, TCP_TABLE_OWNER_PID_ALL, 0) != NO_ERROR)
+    return;
+  auto* table = reinterpret_cast<MIB_TCPTABLE_OWNER_PID*>(buf.data());
+  for (DWORD i = 0; i < table->dwNumEntries; ++i) {
+    const auto& row = table->table[i];
+    const int remotePort = ntohs(static_cast<u_short>(row.dwRemotePort));
+    const int localPort = ntohs(static_cast<u_short>(row.dwLocalPort));
+    if ((remotePort < beginPort || remotePort > endPort) &&
+        (localPort < beginPort || localPort > endPort))
+      continue;
+    MIB_TCPROW del{};
+    del.dwState = MIB_TCP_STATE_DELETE_TCB;
+    del.dwLocalAddr = row.dwLocalAddr;
+    del.dwLocalPort = row.dwLocalPort;
+    del.dwRemoteAddr = row.dwRemoteAddr;
+    del.dwRemotePort = row.dwRemotePort;
+    SetTcpEntry(&del);
+  }
 }
 }  
 
@@ -78,9 +110,22 @@ void WinDivertEngine::setConfig(const std::vector<FilterDef>& active, const std:
 }
 
 void WinDivertEngine::kill(const std::vector<std::string>& ids, int ms) {
-  std::lock_guard<std::mutex> lock(mu_);
-  uint64_t until = nowMs() + static_cast<uint64_t>(ms > 0 ? ms : 1500);
-  for (const auto& id : ids) killUntil_[id] = until;
+  std::vector<std::pair<int, int>> portRanges;
+  {
+    std::lock_guard<std::mutex> lock(mu_);
+    uint64_t until = nowMs() + static_cast<uint64_t>(ms > 0 ? ms : 5000);
+    for (const auto& id : ids) {
+      killUntil_[id] = until;
+      buckets_.erase(id);
+      bufferPulse_.erase(id);
+      for (const auto& f : active_) {
+        if (f.id == id && f.beginPort > 0)
+          portRanges.emplace_back(f.beginPort, f.endPort);
+      }
+    }
+  }
+  for (const auto& pr : portRanges)
+    resetTcpOnPortRange(pr.first, pr.second);
 }
 
 void WinDivertEngine::stop() {
@@ -99,44 +144,28 @@ void WinDivertEngine::getStats(uint64_t& passed, uint64_t& dropped) const {
 }
 
 std::string WinDivertEngine::buildFilterString() const {
-  std::vector<std::string> clauses;
-  for (const auto& f : active_) {
-    if (f.beginPort > 0) {
-      if (f.isOutbound) {
-        clauses.push_back("(outbound and udp.DstPort >= " + std::to_string(f.beginPort) +
-                          " and udp.DstPort <= " + std::to_string(f.endPort) + ")");
-      } else {
-        clauses.push_back("(inbound and udp.SrcPort >= " + std::to_string(f.beginPort) +
-                          " and udp.SrcPort <= " + std::to_string(f.endPort) + ")");
-      }
-    } else if (!destinyPorts_.empty()) {
-      std::string pc;
-      for (size_t i = 0; i < destinyPorts_.size(); ++i) {
-        if (i) pc += " or ";
-        pc += f.isOutbound ? "udp.SrcPort == " + std::to_string(destinyPorts_[i])
-                           : "udp.DstPort == " + std::to_string(destinyPorts_[i]);
-      }
-      clauses.push_back("(" + std::string(f.isOutbound ? "outbound" : "inbound") + " and (" + pc + "))");
-    }
-  }
-  if (clauses.empty()) return {};
-  std::string out = "udp and (";
-  for (size_t i = 0; i < clauses.size(); ++i) {
-    if (i) out += " or ";
-    out += clauses[i];
-  }
-  out += ")";
-  return out;
+  std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(mu_));
+  if (active_.empty()) return {};
+  // Capture all TCP/UDP; port/direction matching happens in userspace so switching
+  // modules never leaves WinDivert stuck on a stale kernel filter.
+  return "(udp or tcp)";
 }
 
 const FilterDef* WinDivertEngine::matchFilter(bool outbound, uint16_t srcPort, uint16_t dstPort) const {
-  uint16_t remote = outbound ? dstPort : srcPort;
+  auto portInRange = [](uint16_t port, int begin, int end) {
+    return port >= static_cast<uint16_t>(begin) && port <= static_cast<uint16_t>(end);
+  };
   for (const auto& f : active_) {
-    if (f.isOutbound != outbound) continue;
     if (f.beginPort > 0) {
-      if (remote >= static_cast<uint16_t>(f.beginPort) && remote <= static_cast<uint16_t>(f.endPort)) return &f;
+      // HarryWatch-style: match by service port position, not WinDivert's outbound flag alone.
+      // Download = traffic from remote (src port in range). Upload = traffic to remote (dst in range).
+      if (!f.isOutbound) {
+        if (portInRange(srcPort, f.beginPort, f.endPort)) return &f;
+      } else {
+        if (portInRange(dstPort, f.beginPort, f.endPort)) return &f;
+      }
     } else {
-      uint16_t local = outbound ? srcPort : dstPort;
+      const uint16_t local = outbound ? srcPort : dstPort;
       for (int p : destinyPorts_) {
         if (local == static_cast<uint16_t>(p)) return &f;
       }
@@ -173,10 +202,10 @@ bool WinDivertEngine::isBufferRelief(const FilterDef& f) {
 }
 
 bool WinDivertEngine::allowPacket(const FilterDef& f, unsigned len) {
-  if (isBufferRelief(f)) return true;
   uint64_t t = nowMs();
   auto it = killUntil_.find(f.id);
   if (it != killUntil_.end() && t < it->second) return false;
+  if (isBufferRelief(f)) return true;
   if (f.bytes <= 1) return false;
   Bucket& b = buckets_[f.id];
   if (b.rate != f.bytes) {
@@ -201,42 +230,7 @@ void WinDivertEngine::closeHandle() {
 }
 
 void WinDivertEngine::reopen() {
-  std::vector<FilterDef> active;
-  std::vector<int> ports;
-  {
-    std::lock_guard<std::mutex> lock(mu_);
-    active = active_;
-    ports = destinyPorts_;
-  }
-  std::string want = [&] {
-    std::vector<std::string> clauses;
-    for (const auto& f : active) {
-      if (f.beginPort > 0) {
-        if (f.isOutbound)
-          clauses.push_back("(outbound and udp.DstPort >= " + std::to_string(f.beginPort) +
-                            " and udp.DstPort <= " + std::to_string(f.endPort) + ")");
-        else
-          clauses.push_back("(inbound and udp.SrcPort >= " + std::to_string(f.beginPort) +
-                            " and udp.SrcPort <= " + std::to_string(f.endPort) + ")");
-      } else if (!ports.empty()) {
-        std::string pc;
-        for (size_t i = 0; i < ports.size(); ++i) {
-          if (i) pc += " or ";
-          pc += f.isOutbound ? "udp.SrcPort == " + std::to_string(ports[i])
-                             : "udp.DstPort == " + std::to_string(ports[i]);
-        }
-        clauses.push_back("(" + std::string(f.isOutbound ? "outbound" : "inbound") + " and (" + pc + "))");
-      }
-    }
-    if (clauses.empty()) return std::string{};
-    std::string out = "udp and (";
-    for (size_t i = 0; i < clauses.size(); ++i) {
-      if (i) out += " or ";
-      out += clauses[i];
-    }
-    out += ")";
-    return out;
-  }();
+  std::string want = buildFilterString();
 
   std::lock_guard<std::mutex> lock(mu_);
   if (want == currentFilter_ && handle_) return;
@@ -282,8 +276,10 @@ void WinDivertEngine::packetLoop() {
     }
     bool forward = true;
     uint16_t src = 0, dst = 0;
-    if (parsePorts(packet, recvLen, src, dst)) {
+    bool isTcp = false;
+    if (parseTransport(packet, recvLen, isTcp, src, dst)) {
       bool outbound = ((addr[10] >> 1) & 1) == 1;
+      (void)isTcp;
       const FilterDef* f = nullptr;
       {
         std::lock_guard<std::mutex> lock(mu_);

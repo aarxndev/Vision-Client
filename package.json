@@ -1,7 +1,7 @@
 {
   "name": "vision-client",
   "productName": "Vision Client",
-  "version": "4.0.1",
+  "version": "4.0.2",
   "description": "Vision Client",
   "main": "src/main/main.js",
   "author": "aarxndev",

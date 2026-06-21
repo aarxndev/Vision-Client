@@ -274,8 +274,11 @@ std::string VisionCore::handleCommand(const jsonmin::Obj& req) {
     if (ids.empty()) {
       std::lock_guard<std::mutex> lock(mu_);
       for (const auto& kv : active_) ids.push_back(kv.first);
+      if (ids.empty()) {
+        for (const auto& f : allFilters_) ids.push_back(f.id);
+      }
     }
-    int ms = req.hasN("ms") ? static_cast<int>(req.n.at("ms")) : 1500;
+    int ms = req.hasN("ms") ? static_cast<int>(req.n.at("ms")) : 5000;
     engine_.kill(ids, ms);
     return respond("");
   }

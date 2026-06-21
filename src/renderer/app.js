@@ -154,6 +154,12 @@ function portLabel(f) {
   return f.beginPort === f.endPort ? `Port ${f.beginPort}` : `${f.beginPort}-${f.endPort}`;
 }
 
+function moduleKeyLabel(mod, key) {
+  if (!mod || mod === 'None') return esc(key || '?');
+  const prefix = mod === 'Control' ? 'CTRL' : mod.toUpperCase();
+  return `${prefix}+${esc(key || '?')}`;
+}
+
 function renderModules() {
   const mod = $('#modules');
   mod.innerHTML = '';
@@ -167,7 +173,7 @@ function renderModules() {
     el.innerHTML = `
       <div class="mod-top">
         <span class="mod-name">${esc(f.name)}</span>
-        <span class="mod-key">${m === 'Control' ? 'CTRL' : m.toUpperCase()}+${esc(f.key || '?')}</span>
+        <span class="mod-key">${moduleKeyLabel(m, f.key)}</span>
       </div>
       <div class="mod-meta">
         <span class="tag">${portLabel(f)}</span>
@@ -686,8 +692,13 @@ function wire() {
     toast('info', 'All modules disabled.');
   });
   $('#btn-kill').addEventListener('click', async () => {
-    await api.kill(state.active);
-    toast('info', 'Killed connections on active modules.');
+    const ids = state.active.length
+      ? state.active
+      : state.config.filters.map((f) => f.id);
+    await api.kill(ids);
+    toast('info', state.active.length
+      ? 'Killed connections on active modules (5s hard drop).'
+      : 'Killed connections on all modules (5s hard drop).');
   });
   $('#btn-pause').addEventListener('click', () => api.togglePause());
 

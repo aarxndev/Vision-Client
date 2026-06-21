@@ -156,12 +156,19 @@ function startEngine() {
   return engine.start();
 }
 
+function filterAccel(key) {
+  if (!key) return null;
+  const mod = (cfg.modifier || 'Control').trim();
+  if (!mod || mod.toLowerCase() === 'none') return normalizeAccel(String(key));
+  return normalizeAccel(`${mod}+${key}`);
+}
+
 function registerHotkeys() {
   globalShortcut.unregisterAll();
-  const mod = cfg.modifier || 'Control';
   for (const f of cfg.filters) {
     if (!f.key) continue;
-    const accel = `${mod}+${f.key}`;
+    const accel = filterAccel(f.key);
+    if (!accel) continue;
     try {
       globalShortcut.register(accel, () => { onToggleFilter(f.id); });
     } catch {}
@@ -258,7 +265,7 @@ function setupIpc() {
   });
 
   ipcMain.handle('filter:kill', (_e, ids) => {
-    engine.kill(ids && ids.length ? ids : engine.activeIds(), 1500);
+    engine.kill(ids && ids.length ? ids : engine.activeIds(), 5000);
     return true;
   });
 
