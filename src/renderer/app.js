@@ -406,6 +406,12 @@ function fillMacroHotkeys() {
     btn.dataset.value = val;
     btn.textContent = HotkeyBind.displayLabel(val, btn.dataset.default);
   });
+  const superBtn = $('.wellskate-super-bind');
+  if (superBtn) {
+    const superBind = (state.config.bibleMacros && state.config.bibleMacros.wellskateSuperBind) || '';
+    superBtn.dataset.value = superBind;
+    superBtn.textContent = HotkeyBind.displayLabel(superBind, 'Set bind');
+  }
   const chatText = (state.config.bibleMacros && state.config.bibleMacros.chatMacroText) || '';
   const chatInput = $('#chat-macro-text');
   if (chatInput) chatInput.value = chatText;
@@ -432,6 +438,13 @@ function fillDualityMacroFields() {
     if (!el || macros[key] == null) continue;
     el.value = macros[key];
   }
+}
+
+async function saveWellskateSuperBind(accel) {
+  const partial = { wellskateSuperBind: accel || '' };
+  state.config = await api.saveSettings({ bibleMacros: partial });
+  if (!state.config.bibleMacros) state.config.bibleMacros = {};
+  Object.assign(state.config.bibleMacros, partial);
 }
 
 async function saveDualityMacroField(key, raw) {
@@ -473,6 +486,14 @@ function setupBindControls() {
       const type = btn.dataset.macro;
       state.config.macroHotkeys = await api.saveMacroHotkeys({ [type]: accel });
       toast('info', `${type} bind: ${accel}`);
+    },
+  });
+
+  HotkeyBind.mountBindButton($('.wellskate-super-bind'), {
+    value: (state.config.bibleMacros && state.config.bibleMacros.wellskateSuperBind) || '',
+    onCapture: async (accel) => {
+      await saveWellskateSuperBind(accel);
+      toast('info', `Super bind: ${accel}`);
     },
   });
 
@@ -532,6 +553,11 @@ async function saveMacroHotkey(type, value) {
 async function toggleMacro(el) {
   const type = el.dataset.macro;
   if (el.checked) {
+    if (type === 'wellskate' && !(state.config.bibleMacros && state.config.bibleMacros.wellskateSuperBind)) {
+      el.checked = false;
+      toast('error', 'Set your super ability bind before enabling Wellskate.');
+      return;
+    }
     $$('.macro-toggle').forEach((t) => { if (t !== el) t.checked = false; });
     await api.startMacro(type);
     const key = (state.config.macroHotkeys && state.config.macroHotkeys[type]) || '';
@@ -697,8 +723,8 @@ function wire() {
       : state.config.filters.map((f) => f.id);
     await api.kill(ids);
     toast('info', state.active.length
-      ? 'Killed connections on active modules (5s hard drop).'
-      : 'Killed connections on all modules (5s hard drop).');
+      ? 'Killed connections on active modules (1s hard drop).'
+      : 'Killed connections on all modules (1s hard drop).');
   });
   $('#btn-pause').addEventListener('click', () => api.togglePause());
 

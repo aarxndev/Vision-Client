@@ -265,7 +265,7 @@ function setupIpc() {
   });
 
   ipcMain.handle('filter:kill', (_e, ids) => {
-    engine.kill(ids && ids.length ? ids : engine.activeIds(), 5000);
+    engine.kill(ids && ids.length ? ids : engine.activeIds(), 1000);
     return true;
   });
 

@@ -15,7 +15,6 @@ uint64_t nowMs() {
 const int kVkReturn = 0x0d;
 const int kVkSpace = 0x20;
 const int kVkB = 0x42;
-const int kVkW = 0x57;
 const int kVkF2 = 0x71;
 const int kVkF3 = 0x72;
 const int kVkF6 = 0x75;
@@ -45,6 +44,25 @@ void MacroRunner::pressKey(int vk, bool holdCtrl) const {
   sleepMs(40);
   keybd_event(static_cast<BYTE>(vk), 0, KEYEVENTF_KEYUP, 0);
   if (holdCtrl) keybd_event(static_cast<BYTE>(kVkControl), 0, KEYEVENTF_KEYUP, 0);
+}
+
+void MacroRunner::pressMouseButton(int vk) const {
+  DWORD down = 0, up = 0;
+  if (vk == 0x01) {
+    down = MOUSEEVENTF_LEFTDOWN;
+    up = MOUSEEVENTF_LEFTUP;
+  } else if (vk == 0x02) {
+    down = MOUSEEVENTF_RIGHTDOWN;
+    up = MOUSEEVENTF_RIGHTUP;
+  } else if (vk == 0x04) {
+    down = MOUSEEVENTF_MIDDLEDOWN;
+    up = MOUSEEVENTF_MIDDLEUP;
+  } else {
+    return;
+  }
+  mouse_event(down, 0, 0, 0, 0);
+  sleepMs(30);
+  mouse_event(up, 0, 0, 0, 0);
 }
 
 void MacroRunner::typeText(const std::string& text) const {
@@ -133,12 +151,13 @@ void MacroRunner::pollLoop() {
       else if (type_ == "duality") vk = kVkF6;
     }
     if (vk && keyDown(vk)) {
-      if (type_ == "wellskate") {
+      if (type_ == "wellskate" && !onCooldown(type_, 300)) {
+        pressMouseButton(0x02);
+        sleepMs(75);
         pressKey(kVkSpace);
-        sleepMs(50);
-        pressKey(kVkW);
-        sleepMs(30);
-        pressKey(kVkSpace);
+        const int superVk = parseVk(cfg_.wellskateSuperBind);
+        if (superVk >= 0x01 && superVk <= 0x05) pressMouseButton(superVk);
+        else if (superVk) pressKey(superVk);
       } else if (type_ == "wishwall" && !onCooldown(type_, 500)) {
         pressKey(kVkB);
         sleepMs(200);

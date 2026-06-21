@@ -18,6 +18,7 @@ struct MacroConfig {
   int dualityLoadout4X = 450;
   int dualityLoadoutY = 800;
   int dualitySwapDelay = 150;
+  std::string wellskateSuperBind;
 };
 
 class MacroRunner {
@@ -34,6 +35,7 @@ class MacroRunner {
   bool keyDown(int vk) const;
   void click(int x, int y) const;
   void pressKey(int vk, bool holdCtrl = false) const;
+  void pressMouseButton(int vk) const;
   void typeText(const std::string& text) const;
   void sleepMs(int ms) const;
   bool onCooldown(const std::string& type, int ms);

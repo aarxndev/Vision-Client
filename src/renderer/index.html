@@ -30,7 +30,7 @@
           <img class="avatar avatar-btn" id="profile-avatar" src="../../assets/visionpfp.png" alt="" title="Change profile picture" />
           <div class="profile-meta">
             <div class="profile-name" id="profile-name">Vision Client</div>
-            <div class="profile-ver" id="version">v4.0.2</div>
+            <div class="profile-ver" id="version">v4.0.3</div>
           </div>
         </div>
 
@@ -140,10 +140,13 @@
               <div class="macro-row">
                 <div class="macro-info">
                   <span class="macro-name">Wellskate</span>
-                  <span class="macro-hint muted small">Hold hotkey in-game while enabled.</span>
+                  <span class="macro-hint muted small">Hold activation bind in-game. Set your super ability key on the right.</span>
                 </div>
                 <div class="macro-actions">
-                  <button type="button" class="bind-btn macro-bind" data-macro="wellskate" data-default="Middle"></button>
+                  <span class="macro-bind-label muted small">Act</span>
+                  <button type="button" class="bind-btn macro-bind" data-macro="wellskate" data-default="Middle" title="Macro activation bind"></button>
+                  <span class="macro-bind-label muted small">Super</span>
+                  <button type="button" class="bind-btn wellskate-super-bind" data-default="" title="Your in-game super ability bind"></button>
                   <input type="checkbox" class="macro-toggle" data-macro="wellskate" />
                 </div>
               </div>

@@ -85,6 +85,7 @@ MacroConfig VisionCore::parseMacroConfig(const jsonmin::Obj& req) const {
     if (m.hasN("dualityLoadout4X")) cfg.dualityLoadout4X = static_cast<int>(m.n.at("dualityLoadout4X"));
     if (m.hasN("dualityLoadoutY")) cfg.dualityLoadoutY = static_cast<int>(m.n.at("dualityLoadoutY"));
     if (m.hasN("dualitySwapDelay")) cfg.dualitySwapDelay = static_cast<int>(m.n.at("dualitySwapDelay"));
+    if (m.hasS("wellskateSuperBind")) cfg.wellskateSuperBind = m.s.at("wellskateSuperBind");
   }
   return cfg;
 }
@@ -271,15 +272,27 @@ std::string VisionCore::handleCommand(const jsonmin::Obj& req) {
         else if (o.hasS("id")) ids.push_back(o.s.at("id"));
       }
     }
-    if (ids.empty()) {
+    std::vector<FilterDef> filtersForKill;
+    std::vector<int> ports;
+    int pid = 0;
+    {
       std::lock_guard<std::mutex> lock(mu_);
-      for (const auto& kv : active_) ids.push_back(kv.first);
+      pid = targetPid_;
+      ports = destinyPorts_;
+      filtersForKill = allFilters_;
       if (ids.empty()) {
-        for (const auto& f : allFilters_) ids.push_back(f.id);
+        for (const auto& kv : active_) ids.push_back(kv.first);
+        if (ids.empty()) {
+          for (const auto& f : allFilters_) ids.push_back(f.id);
+        }
       }
     }
-    int ms = req.hasN("ms") ? static_cast<int>(req.n.at("ms")) : 5000;
-    engine_.kill(ids, ms);
+    if (pid > 0) {
+      auto fresh = targetscan::udpPortsForPid(pid);
+      if (!fresh.empty()) ports = fresh;
+    }
+    int ms = req.hasN("ms") ? static_cast<int>(req.n.at("ms")) : 1000;
+    engine_.kill(ids, ms, pid, ports, filtersForKill);
     return respond("");
   }
 

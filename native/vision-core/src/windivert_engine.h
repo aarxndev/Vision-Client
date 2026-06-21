@@ -23,7 +23,8 @@ class WinDivertEngine {
   ~WinDivertEngine();
 
   void setConfig(const std::vector<FilterDef>& active, const std::vector<int>& destinyPorts);
-  void kill(const std::vector<std::string>& ids, int ms);
+  void kill(const std::vector<std::string>& ids, int ms, int targetPid,
+            const std::vector<int>& destinyPorts, const std::vector<FilterDef>& filters);
   void stop();
   bool isOpen() const { return open_.load(); }
   std::string lastError() const;
@@ -40,9 +41,12 @@ class WinDivertEngine {
   std::string buildFilterString() const;
   const FilterDef* matchFilter(bool outbound, uint16_t srcPort, uint16_t dstPort) const;
   bool allowPacket(const FilterDef& f, unsigned len);
+  bool shouldKillDrop(bool outbound, uint16_t srcPort, uint16_t dstPort) const;
   void packetLoop();
   void reopen();
   void closeHandle();
+  void clearKillStateLocked();
+  void scheduleKillEnd(uint64_t generation, int ms);
 
   std::string dllDir_;
   void* dll_ = nullptr;
@@ -68,7 +72,11 @@ class WinDivertEngine {
   struct BufferPulse { uint64_t nextPulseAt = 0; uint64_t pulseUntil = 0; };
   std::map<std::string, Bucket> buckets_;
   std::map<std::string, uint64_t> killUntil_;
+  uint64_t globalKillUntil_ = 0;
+  std::vector<int> killLocalPorts_;
+  std::vector<std::pair<int, int>> killPortRanges_;
   std::map<std::string, BufferPulse> bufferPulse_;
+  std::atomic<uint64_t> killWakeGen_{0};
 
   bool isBufferRelief(const FilterDef& f);
 };

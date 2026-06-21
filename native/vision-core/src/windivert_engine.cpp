@@ -66,6 +66,28 @@ void resetTcpOnPortRange(int beginPort, int endPort) {
     SetTcpEntry(&del);
   }
 }
+
+void resetTcpForPid(int pid) {
+  if (pid <= 0) return;
+  ULONG size = 0;
+  if (GetExtendedTcpTable(nullptr, &size, FALSE, AF_INET, TCP_TABLE_OWNER_PID_ALL, 0) != ERROR_INSUFFICIENT_BUFFER)
+    return;
+  std::vector<uint8_t> buf(size);
+  if (GetExtendedTcpTable(buf.data(), &size, FALSE, AF_INET, TCP_TABLE_OWNER_PID_ALL, 0) != NO_ERROR)
+    return;
+  auto* table = reinterpret_cast<MIB_TCPTABLE_OWNER_PID*>(buf.data());
+  for (DWORD i = 0; i < table->dwNumEntries; ++i) {
+    const auto& row = table->table[i];
+    if (static_cast<int>(row.dwOwningPid) != pid) continue;
+    MIB_TCPROW del{};
+    del.dwState = MIB_TCP_STATE_DELETE_TCB;
+    del.dwLocalAddr = row.dwLocalAddr;
+    del.dwLocalPort = row.dwLocalPort;
+    del.dwRemoteAddr = row.dwRemoteAddr;
+    del.dwRemotePort = row.dwRemotePort;
+    SetTcpEntry(&del);
+  }
+}
 }  
 
 WinDivertEngine::WinDivertEngine(std::string dllDir) : dllDir_(std::move(dllDir)) {
@@ -103,29 +125,81 @@ bool WinDivertEngine::loadDll() {
 
 void WinDivertEngine::setConfig(const std::vector<FilterDef>& active, const std::vector<int>& destinyPorts) {
   std::lock_guard<std::mutex> lock(mu_);
+  if (active.empty()) {
+    killWakeGen_++;
+    clearKillStateLocked();
+    buckets_.clear();
+    bufferPulse_.clear();
+  } else {
+    std::map<std::string, bool> activeIds;
+    for (const auto& f : active) activeIds[f.id] = true;
+    auto prune = [&](auto& map) {
+      for (auto it = map.begin(); it != map.end();) {
+        if (!activeIds.count(it->first)) it = map.erase(it);
+        else ++it;
+      }
+    };
+    prune(buckets_);
+    prune(bufferPulse_);
+    prune(killUntil_);
+  }
   active_ = active;
   destinyPorts_ = destinyPorts;
   // Unblock synchronous WinDivertRecv so packetLoop can reopen with the new filter.
   if (handle_ && pShutdown_) pShutdown_(handle_, 3);
 }
 
-void WinDivertEngine::kill(const std::vector<std::string>& ids, int ms) {
+void WinDivertEngine::clearKillStateLocked() {
+  globalKillUntil_ = 0;
+  killLocalPorts_.clear();
+  killPortRanges_.clear();
+  killUntil_.clear();
+}
+
+void WinDivertEngine::scheduleKillEnd(uint64_t generation, int ms) {
+  std::thread([this, generation, ms] {
+    Sleep(static_cast<DWORD>(ms > 0 ? ms : 1000));
+    std::lock_guard<std::mutex> lock(mu_);
+    if (!running_) return;
+    if (killWakeGen_.load() != generation) return;
+    clearKillStateLocked();
+    if (active_.empty() && handle_ && pShutdown_) pShutdown_(handle_, 3);
+  }).detach();
+}
+
+void WinDivertEngine::kill(const std::vector<std::string>& ids, int ms, int targetPid,
+                           const std::vector<int>& destinyPorts,
+                           const std::vector<FilterDef>& filters) {
   std::vector<std::pair<int, int>> portRanges;
+  void* h = nullptr;
+  uint64_t wakeGen = 0;
+  const int duration = ms > 0 ? ms : 1000;
   {
     std::lock_guard<std::mutex> lock(mu_);
-    uint64_t until = nowMs() + static_cast<uint64_t>(ms > 0 ? ms : 5000);
-    for (const auto& id : ids) {
-      killUntil_[id] = until;
-      buckets_.erase(id);
-      bufferPulse_.erase(id);
-      for (const auto& f : active_) {
-        if (f.id == id && f.beginPort > 0)
-          portRanges.emplace_back(f.beginPort, f.endPort);
+    const uint64_t until = nowMs() + static_cast<uint64_t>(duration);
+    globalKillUntil_ = until;
+    killLocalPorts_ = destinyPorts;
+    killPortRanges_.clear();
+    for (const auto& f : filters) {
+      if (f.beginPort > 0)
+        killPortRanges_.emplace_back(f.beginPort, f.endPort);
+      for (const auto& id : ids) {
+        if (f.id == id) {
+          killUntil_[id] = until;
+          buckets_.erase(id);
+          bufferPulse_.erase(id);
+        }
       }
     }
+    portRanges = killPortRanges_;
+    h = handle_;
+    wakeGen = ++killWakeGen_;
   }
+  resetTcpForPid(targetPid);
   for (const auto& pr : portRanges)
     resetTcpOnPortRange(pr.first, pr.second);
+  if (h && pShutdown_) pShutdown_(h, 3);
+  scheduleKillEnd(wakeGen, duration);
 }
 
 void WinDivertEngine::stop() {
@@ -145,7 +219,8 @@ void WinDivertEngine::getStats(uint64_t& passed, uint64_t& dropped) const {
 
 std::string WinDivertEngine::buildFilterString() const {
   std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(mu_));
-  if (active_.empty()) return {};
+  const uint64_t t = nowMs();
+  if (active_.empty() && t >= globalKillUntil_) return {};
   // Capture all TCP/UDP; port/direction matching happens in userspace so switching
   // modules never leaves WinDivert stuck on a stale kernel filter.
   return "(udp or tcp)";
@@ -201,10 +276,33 @@ bool WinDivertEngine::isBufferRelief(const FilterDef& f) {
   return false;
 }
 
+bool WinDivertEngine::shouldKillDrop(bool outbound, uint16_t srcPort, uint16_t dstPort) const {
+  std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(mu_));
+  const uint64_t t = nowMs();
+  if (t >= globalKillUntil_) return false;
+
+  const uint16_t local = outbound ? srcPort : dstPort;
+  for (int p : killLocalPorts_) {
+    if (local == static_cast<uint16_t>(p)) return true;
+  }
+
+  auto portInRange = [](uint16_t port, int begin, int end) {
+    return port >= static_cast<uint16_t>(begin) && port <= static_cast<uint16_t>(end);
+  };
+  for (const auto& pr : killPortRanges_) {
+    if (portInRange(srcPort, pr.first, pr.second) || portInRange(dstPort, pr.first, pr.second))
+      return true;
+  }
+  return false;
+}
+
 bool WinDivertEngine::allowPacket(const FilterDef& f, unsigned len) {
   uint64_t t = nowMs();
   auto it = killUntil_.find(f.id);
-  if (it != killUntil_.end() && t < it->second) return false;
+  if (it != killUntil_.end()) {
+    if (t < it->second) return false;
+    killUntil_.erase(it);
+  }
   if (isBufferRelief(f)) return true;
   if (f.bytes <= 1) return false;
   Bucket& b = buckets_[f.id];
@@ -230,6 +328,11 @@ void WinDivertEngine::closeHandle() {
 }
 
 void WinDivertEngine::reopen() {
+  {
+    std::lock_guard<std::mutex> lock(mu_);
+    if (globalKillUntil_ > 0 && nowMs() >= globalKillUntil_) clearKillStateLocked();
+  }
+
   std::string want = buildFilterString();
 
   std::lock_guard<std::mutex> lock(mu_);
@@ -241,7 +344,10 @@ void WinDivertEngine::reopen() {
     open_ = false;
   }
   currentFilter_ = want;
-  if (want.empty()) return;
+  if (want.empty()) {
+    open_ = false;
+    return;
+  }
   if (!pOpen_) return;
   handle_ = pOpen_(want.c_str(), 0, 0, 0);
   if (!handle_ || handle_ == INVALID_HANDLE_VALUE) {
@@ -280,11 +386,15 @@ void WinDivertEngine::packetLoop() {
     if (parseTransport(packet, recvLen, isTcp, src, dst)) {
       bool outbound = ((addr[10] >> 1) & 1) == 1;
       (void)isTcp;
-      const FilterDef* f = nullptr;
-      {
-        std::lock_guard<std::mutex> lock(mu_);
-        f = matchFilter(outbound, src, dst);
-        if (f) forward = allowPacket(*f, recvLen);
+      if (shouldKillDrop(outbound, src, dst)) {
+        forward = false;
+      } else {
+        const FilterDef* f = nullptr;
+        {
+          std::lock_guard<std::mutex> lock(mu_);
+          f = matchFilter(outbound, src, dst);
+          if (f) forward = allowPacket(*f, recvLen);
+        }
       }
     }
     if (forward) {

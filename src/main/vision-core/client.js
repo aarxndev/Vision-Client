@@ -137,7 +137,7 @@ class VisionCoreClient {
     });
   }
 
-  async kill(ids, ms = 5000) {
+  async kill(ids, ms = 1000) {
     await this.request('kill', { ids, ms });
   }
 

@@ -35,6 +35,7 @@ const DEFAULTS = {
     dualitySwapDelay: 150,
     wishwallX: 960,
     wishwallY: 540,
+    wellskateSuperBind: '',
     chatMacroText: 'gg',
   },
   filters: [

@@ -1,7 +1,7 @@
 <div align="center">
   <img src="assets/visionlogo.png" width="80" alt="Vision Client" />
   <h1>Vision Client</h1>
-  <p>Destiny 2 network limiter</p>
+  <p>Destiny 2 network limiter with a bundled WinDivert engine.</p>
 </div>
 
 ![Modules](docs/modules.png)

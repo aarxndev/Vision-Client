@@ -363,6 +363,7 @@ h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; font-family: va
 .macro-info { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
 .macro-name { font-weight: 600; font-size: 14px; }
 .macro-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.macro-bind-label { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; min-width: 2.2em; }
 .bind-btn {
   min-width: 108px; padding: 7px 10px; border-radius: 8px;
   border: 1px solid var(--border); background: var(--bg-2); color: var(--text);
