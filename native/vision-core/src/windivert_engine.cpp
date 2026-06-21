@@ -157,7 +157,7 @@ const FilterDef* WinDivertEngine::matchFilter(bool outbound, uint16_t srcPort, u
   };
   for (const auto& f : active_) {
     if (f.beginPort > 0) {
-      // HarryWatch-style: match by service port position, not WinDivert's outbound flag alone.
+      // Match by service port position (src = download, dst = upload).
       // Download = traffic from remote (src port in range). Upload = traffic to remote (dst in range).
       if (!f.isOutbound) {
         if (portInRange(srcPort, f.beginPort, f.endPort)) return &f;
